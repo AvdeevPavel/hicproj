@@ -1,0 +1,48 @@
+
+in_library = 'hic_libs/ds_dtg.yaml'
+in_out_dir = '../sb50/'
+fasta_file = '../sb50/fastas/bubbly_utg.fasta'
+bwa_m_opt = 'sb50/bams/'
+
+rule all:
+    input:
+        expand(bams_working_dir + "_" + graph_s + '/' + lib_name + '{sample}' + '.bam', sample=samples)
+
+
+rule build_bwa_index:
+    input:
+        ffasta = fasta_file
+    output:
+        fpac = fasta_file + ".pac",
+        fann = fasta_file + ".ann",
+        famb = fasta_file + ".amb",
+        fihd = fasta_file + ".bwt",
+        fsa = fasta_file + ".sa"
+    shell:
+        r'''
+            module load bwa
+            
+            bwa index {input.ffasta}
+        '''
+
+rule map_reads_to_contigs:
+    input:
+        indx = fasta_file,
+        r1 = hic_storing_dir + lib_name + '{sample}' + r1_name,
+        r2 = hic_storing_dir + lib_name + '{sample}' + r2_name
+    output:
+        fbam = bams_working_dir + "_" + graph_s + '/' + lib_name + '{sample}' + '.bam'
+    params:
+        bwaopt = bwa_m_opt,
+        threads = 8
+    resources:
+        runtime = 400,
+        attempt = 1
+    shell:
+        r'''
+            module load bwa 
+            module load samtools
+            
+            bwa mem -SP5{params.bwaopt} -t {params.threads} {input.indx} \
+                    {input.r1} {input.r2} | samtools view -bS - >  {output.fbam}
+        '''

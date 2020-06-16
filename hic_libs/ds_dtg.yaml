@@ -1,0 +1,11 @@
+- fastqs:
+  - R1: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/dtg_sampled/HG002.HiC_1_1.R1.fq.gz
+    R2: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/dtg_sampled/HG002.HiC_1_1.R2.fq.gz
+  - R1: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/dtg_sampled/HG002.HiC_1_2.R1.fq.gz
+    R2: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/dtg_sampled/HG002.HiC_1_2.R2.fq.gz
+  - R1: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/dtg_sampled/HG002.HiC_1_3.R1.fq.gz
+    R2: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/dtg_sampled/HG002.HiC_1_3.R2.fq.gz
+  res_sites:
+    - DNASE
+  name:
+    lib3

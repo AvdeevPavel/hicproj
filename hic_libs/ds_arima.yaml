@@ -1,0 +1,10 @@
+- fastqs:
+    - R1: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/arima_sampled/HG002.HiC_2_NovaSeq_rep1_run2_S1_L001_R1_001.fastq.gz
+      R2: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/arima_sampled/HG002.HiC_2_NovaSeq_rep1_run2_S1_L001_R2_001.fastq.gz
+  res_sites:
+    - ^GATC
+    - G^ANTC
+    - C^TNAG
+    - T^TAA
+  name:
+    lib2

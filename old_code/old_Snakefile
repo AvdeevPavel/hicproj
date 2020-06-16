@@ -1,0 +1,151 @@
+lib = "dtg_sampled"
+graph_s = "small"
+working_dir = '/lustre/groups/cbi/Users/avdeyev/hicProject/work/'
+
+if graph_s == 'origin':
+    graph_storing_file = '/lustre/groups/cbi/Users/avdeyev/hicProject/work/graph/orig/hg002.gfa'
+    graph_fasta = '/lustre/groups/cbi/Users/avdeyev/hicProject/work/graph/orig/hg002.fasta'
+elif graph_s == 'small':
+    graph_storing_file = '/lustre/groups/cbi/Users/avdeyev/hicProject/work/graph/small/sb50.gfa'
+    graph_fasta = '/lustre/groups/cbi/Users/avdeyev/hicProject/work/graph/small/sb50.fasta'
+elif graph_s == 'conc':
+    graph_storing_file = '/lustre/groups/cbi/Users/avdeyev/hicProject/work/graph/conc/comp200.gfa'
+    graph_fasta = '/lustre/groups/cbi/Users/avdeyev/hicProject/work/graph/conc/comp200.fasta'
+else:
+    graph_storing_file = ''
+    graph_fasta = ''
+
+# graph_working_dir = '/lustre/groups/cbi/Users/avdeyev/hicProject/work/graphs/'
+if lib == "dtg_trim":
+    samples = [str(i) for i in range(1, 9)]
+    hic_storing_dir = '/lustre/groups/cbi/Users/avdeyev/hicProject/hic/dtg_trim/'
+    lib_name = 'SE5138_NWM055-1_S15_L00'
+    bams_working_dir = '/lustre/groups/cbi/Users/avdeyev/hicProject/work/bams/dtg_trim'
+    r1_name = '_R1_001.trimmed.fastq.gz'
+    r2_name = '_R2_001.trimmed.fastq.gz'
+    bwa_m_opt = ''
+elif lib == "arima_trim":
+    samples = [str(i) for i in range(1, 9)]
+    hic_storing_dir = '/lustre/groups/cbi/Users/avdeyev/hicProject/hic/arima_trim/'
+    lib_name = 'SE5138_NWM055-2_S16_L00'
+    bams_working_dir = '/lustre/groups/cbi/Users/avdeyev/hicProject/work/bams/arima_trim'
+    r1_name = '_R1_001.trimmed.fastq.gz'
+    r2_name = '_R2_001.trimmed.fastq.gz'
+    bwa_m_opt = 'M'
+elif lib == "dtg_sampled":
+    samples = [str(i) for i in range(1, 4)]
+    hic_storing_dir = '/lustre/groups/cbi/Users/avdeyev/hicProject/hic/dtg_sampled/'
+    lib_name = 'HG002.HiC_1_'
+    bams_working_dir = '/lustre/groups/cbi/Users/avdeyev/hicProject/work/bams/dtg_sampled'
+    r1_name = '.R1.fq.gz'
+    r2_name = '.R2.fq.gz'
+    bwa_m_opt = ''
+elif lib == "arima_sampled":
+    samples = ["1"]
+    hic_storing_dir = '/lustre/groups/cbi/Users/avdeyev/hicProject/hic/arima_sampled/'
+    lib_name = 'HG002.HiC_2_NovaSeq_rep1_run2_S1_L00'
+    bams_working_dir = '/lustre/groups/cbi/Users/avdeyev/hicProject/work/bams/arima_sampled'
+    r1_name = '_R1_001.fastq.gz'
+    r2_name = '_R2_001.fastq.gz'
+    bwa_m_opt = 'M'
+else:
+    samples = []
+    hic_storing_dir = ''
+    lib_name = ''
+    bams_working_dir = ''
+    r1_name = ''
+    r2_name = ''
+    bwa_m_opt = ''
+
+
+
+rule all:
+    input:
+        # expand(bams_working_dir + lib_name + '{sample}' + '.sam', sample=samples)
+        expand(bams_working_dir + "_" + graph_s + '/' + lib_name + '{sample}' + '.bam', sample=samples)
+
+# rule build_bwa_index:
+#     input:
+#         ffasta=graph_fasta
+#     output:
+#         fpac = graph_fasta + ".pac",
+#         fann = graph_fasta + ".ann",
+#         famb = graph_fasta + ".amb",
+#         fihd = graph_fasta + ".bwt",
+#         fsa = graph_fasta + ".sa"
+#     shell:
+#         r'''
+#             bwa index {input.ffasta}
+#         '''
+
+# rule generate_contig_lengths:
+#     input:
+#         ffasta = graph_fasta
+#     output:
+#         ffai = graph_fasta + ".fai",
+#         fcontsz = graph_working_dir + "contig_sizes.txt"
+#     shell:
+#         r'''
+# 	        samtools faidx {output.ffai}
+# 	        cut -f1,2 {output.ffai} > {output.fcontsz}
+#         '''
+
+# rule sort_and_save_as_bams:
+#     input:
+#         fsam = bams_working_dir + lib_name + '{sample}' + '.sam'
+#     output:
+#         fbam = bams_working_dir + lib_name + '{sample}' + '.bam'
+#     params:
+#         temp_dir = bams_working_dir + "tmp/" + lib_name + '{sample}',
+#         threads = 8
+#     resources:
+#         runtime = 100,
+#         attempt = 1
+#     shell:
+#         r'''
+#           module load samtools
+#
+#           samtools view -Shb {input.fsam} | samtools sort -T {params.temp_dir} - > {output.fbam}
+#         '''
+
+
+# rule merge_bams_into_one:
+#     input:
+#         fbams = expand(bams_working_dir + lib_name + '{sample}' + '.bam', sample=samples)
+#     output:
+#         fbam = bams_working_dir + lib_name + '.bam'
+#     params:
+#         workind_dir = bams_working_dir,
+#         threads = 8
+#     resources:
+#         runtime = 600,
+#         attempt = 1
+#     shell:
+#         r'''
+#           module load samtools
+#
+#           samtools merge {output.fbam} {params.workind_dir}/*.bam
+#         '''
+
+
+rule map_reads_to_contigs:
+    input:
+        indx = graph_fasta,
+        r1 = hic_storing_dir + lib_name + '{sample}' + r1_name,
+        r2 = hic_storing_dir + lib_name + '{sample}' + r2_name
+    output:
+        fbam = bams_working_dir + "_" + graph_s + '/' + lib_name + '{sample}' + '.bam'
+    params:
+        bwaopt = bwa_m_opt,
+        threads = 8
+    resources:
+        runtime = 400,
+        attempt = 1
+    shell:
+        r'''
+            module load bwa 
+            module load samtools
+            
+            bwa mem -SP5{params.bwaopt} -t {params.threads} {input.indx} \
+                    {input.r1} {input.r2} | samtools view -bS - >  {output.fbam}
+        '''

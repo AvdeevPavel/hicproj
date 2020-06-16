@@ -1,0 +1,24 @@
+- fastqs:
+  - R1: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/SE5138_NWM055-2_S16_L001_R1_001.trimmed.fastq.gz
+    R2: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/SE5138_NWM055-2_S16_L001_R2_001.trimmed.fastq.gz
+  - R1: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/SE5138_NWM055-2_S16_L002_R1_001.trimmed.fastq.gz
+    R2: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/SE5138_NWM055-2_S16_L002_R2_001.trimmed.fastq.gz
+  - R1: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/SE5138_NWM055-2_S16_L003_R1_001.trimmed.fastq.gz
+    R2: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/SE5138_NWM055-2_S16_L003_R2_001.trimmed.fastq.gz
+  - R1: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/SE5138_NWM055-2_S16_L004_R1_001.trimmed.fastq.gz
+    R2: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/SE5138_NWM055-2_S16_L004_R2_001.trimmed.fastq.gz
+  - R1: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/SE5138_NWM055-2_S16_L005_R1_001.trimmed.fastq.gz
+    R2: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/SE5138_NWM055-2_S16_L005_R2_001.trimmed.fastq.gz
+  - R1: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/SE5138_NWM055-2_S16_L006_R1_001.trimmed.fastq.gz
+    R2: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/SE5138_NWM055-2_S16_L006_R2_001.trimmed.fastq.gz
+  - R1: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/SE5138_NWM055-2_S16_L007_R1_001.trimmed.fastq.gz
+    R2: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/SE5138_NWM055-2_S16_L007_R1_001.trimmed.fastq.gz
+  - R1: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/SE5138_NWM055-2_S16_L008_R1_001.trimmed.fastq.gz
+    R2: /lustre/groups/cbi/Users/avdeyev/hicProject/hic/SE5138_NWM055-2_S16_L008_R2_001.trimmed.fastq.gz
+  res_sites:
+    - ^GATC
+    - G^ANTC
+    - C^TNAG
+    - T^TAA
+  name:
+    lib2
