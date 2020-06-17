@@ -1,8 +1,9 @@
 import argparse
 import logging
-import pysam
+import os
 
 from __version__ import __version__
+from hic_pairs.io_handler import BAMParser
 
 logger = logging.getLogger()
 
@@ -63,8 +64,29 @@ def parse_arguments():
 
 
 def main():
-    args = parse_arguments()
+    # args = parse_arguments()
 
+    # output_dir = os.path.abspath(args.out_dir)
+    # if not os.path.isdir(output_dir):
+    #     os.mkdir(output_dir)
+    #
+    # # Switching on logging
+    # log_dir = os.path.join(output_dir, "logs")
+    # if not os.path.isdir(log_dir):
+    #     os.mkdir(log_dir)
+    # log_file = os.path.join(log_dir, "pairs.log")
+    # enable_logging(log_file, True, logging.DEBUG)
+    #
+    # if not os.path.isfile(args.graph) or not os.path.isfile(args.bam):
+    #     logger.error("One of the input files is unavaliable. Please, check existance of files")
+    #     exit(1)
+    #
+    graph_file = "sb50.gfa"
+    bam_file = "two_cont.bam"
+
+    parser = BAMParser(bam_file)
+    parser.parse()
+    parser.write_statistics_info_into_file("stat.txt")
 
 
 if __name__ == "__main__":
