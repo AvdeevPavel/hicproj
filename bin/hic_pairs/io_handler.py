@@ -1,7 +1,11 @@
+import logging
+from typing import List, Tuple
+
 import pysam
 
 from gfa_graph.asm_graph import AsmGraph
 
+logger = logging.getLogger()
 
 def parse_cigar(cigar):
     matched_bp = 0
@@ -122,52 +126,218 @@ class BAMParser(object):
         self.path_to_bam = bam_file
         self.graph = graph
 
+        # total number of reads
+        self.read_counter = 0
         # total number of alignment records
-        self.total_number = 0
+        self.alignment_counter = 0
+        # total number of reads that does not have primary alignments == should be zero
+        self.wo_primary_alignments = 0
         # n = non-mapped, m = mapped, each letter is read from pair
-        self.nn_count, self.nm_count, self.mm_count = 0, 0, 0
+        self.nn_counter, self.nm_counter, self.mm_counter = 0, 0, 0
         # supp = supplementary, sec = secondary, prime = prim
-        self.supp_count, self.sec_count, self.prime_count = 0, 0, 0
+        self.supp_counter, self.sec_counter, self.prime_counter = 0, 0, 0
         # mapq0 is interesting since it may have perfect alignments but with XA tag, posq can be further filtered
-        self.mapq0_count, self.posq_count = 0, 0
+        self.mapq0_counter, self.posq_counter = 0, 0
+        # type of hic pairs
+        self.uu_pair_counter, self.um_pair_counter, self.mm_pair_counter = 0, 0, 0
+
+        self.uniquely_mapped_reads = dict()
+
+    # def parse_primary_mapped_reads(self, record):
+    #     if 0 != record.query_alignment_start:
+    #         if record.flag & 0x0010 == 0:
+    #             strand = '+'
+    #             print(record.to_string())
+    #             print("Positive {0} {1} {2}".format(record.reference_start, record.reference_end, record.cigarstring))
+    #         else:
+    #             strand = '-'
+    #             print(record.to_string())
+    #             print("Negative {0} {1} {2}".format(record.reference_start, record.reference_end, record.cigarstring))
+
+    def _partition_read_alignments(self, records: List) -> Tuple[List, List, List]:
+        primary, secondary, supplementary = [], [], []
+
+        for record in records:
+            if record.flag & 0x0100:  # record.is_secondary
+                secondary.append(record)
+                self.sec_counter += 1
+            elif record.flag & 0x0800:  # record.is_supplementary
+                supplementary.append(record)
+                self.supp_counter += 1
+            else:
+                primary.append(record)
+
+        if len(primary) != 1:
+            return [], [], []
+
+        return primary, secondary, supplementary
+
+    def _parse_paired_read_alignments(self, recs1: List, recs2: List) -> None:
+        if len(recs1) == 0 or len(recs2) == 0:
+            return
+
+        prim_rs1, sec_rs1, supp_rs1 = self._partition_read_alignments(recs1)
+        prim_rs2, sec_rs2, supp_rs2 = self._partition_read_alignments(recs2)
+
+        if len(prim_rs1) != 1 or len(prim_rs2) != 1:
+            self.wo_primary_alignments += 1
+            logger.debug("ATTENTION: It must be one and only one primary alignment for both reads")
+            return
+
+        prim_r1, prim_r2 = prim_rs1[0], prim_rs2[0]
+
+        if prim_r1.flag & 0x0004 and prim_r2.flag & 0x0004:
+            # both reads are unmapped - we are not interested
+            self.nn_counter += 1
+            return
+        elif bool(prim_r1.flag & 0x0004) != bool(prim_r2.flag & 0x0004):
+            # one of two reads is unmapped - we are not interested
+            self.nm_counter += 1
+            return
+
+        self.mm_counter += 1
 
     def parse(self) -> None:
-        bam_stream = pysam.AlignmentFile(self.path_to_bam, 'rb')
+        """
+        The main assumption is the bam file sorted by read name
+        """
+        recs1, recs2 = [], []
 
-        for record in bam_stream:
-            self.total_number += 1
-            # if record.is_unmapped or record.mate_is_unmapped:
-            if record.flag & 0x0004 and record.flag & 0x0008:
-                # both reads are unmapped - we are not interested
-                self.nn_count += 1
-            elif (record.flag & 0x0004) != (record.flag & 0x0008):
-                # one of two reads is unmapped - we are not interested
-                self.nm_count += 1
+        def push_alignments(rec) -> None:
+            if rec.flag & 0x0040:  # rec.is_read1
+                recs1.append(rec)
+            elif rec.flag & 0x0080:  # rec.is_read2
+                recs2.append(rec)
             else:
-                self.mm_count += 1
-                if record.flag & 0x0800:  # record.is_supplementary:
-                    # TODO small overlaps because of repeats or chimeric stuff
-                    self.supp_count += 1
-                elif record.flag & 0x0100:  # record.is_secondary:
-                    # TODO may cause by overlaps in unitigs or complete overlaps
-                    self.sec_count += 1
-                else:
-                    self.prime_count += 1
-                    if record.mapping_quality == 0:
-                        self.mapq0_count += 1
-                    else:
-                        self.posq_count += 1
+                assert False
+
+        prev_read_id = None
+        bam_stream = pysam.AlignmentFile(self.path_to_bam, 'rb')
+        for record in bam_stream.fetch(until_eof=True):
+            self.alignment_counter += 1
+
+            read_id = record.query_name
+
+            if not prev_read_id:
+                prev_read_id = read_id
+                push_alignments(record)
+                continue
+
+            if read_id != prev_read_id:
+                # logger.debug('New group of alignments for {0} is detected.'.format(read_id))
+                self.read_counter += 1
+
+                self._parse_paired_read_alignments(recs1, recs2)
+
+                recs1.clear()
+                recs2.clear()
+                prev_read_id = read_id
+
+            push_alignments(record)
+
+            if self.read_counter % 100000 == 0:
+                pass
+                # logger.info("{0} reads were processed.".format(self.read_counter))
+
+        if len(recs1) != 0 or len(recs2) != 0:
+            # logger.info("Dump the latest group alignment")
+            self.read_counter += 1
+            self._parse_paired_read_alignments(recs1, recs2)
 
     def write_statistics_info_into_file(self, out_file: str) -> None:
         with open(out_file, 'w') as out:
-            out.write("Total number of alignment records = {0}\n".format(self.total_number))
-            out.write("\tBoth reads in pair are unmapped {0}\n".format(self.nn_count))
-            out.write("\tOne of reads in pair are unmapped {0}\n".format(self.nm_count))
-            out.write("\tBoth reads in pair are mapped {0}\n".format(self.mm_count))
-            out.write("\nStatistics of mapped pairs\n")
-            out.write("\tSupplementary alignments {0}\n".format(self.supp_count))
-            out.write("\tSecondary alignments {0}\n".format(self.sec_count))
-            out.write("\tPrimary alignments {0}\n".format(self.prime_count))
+            out.write("Total number of reads = {0}\n".format(self.read_counter))
+            out.write("Total number of alignment records = {0}\n".format(self.alignment_counter))
+            out.write("\tBoth reads in pair are unmapped {0}\n".format(self.nn_counter))
+            out.write("\tOne of the reads in pair is unmapped {0}\n".format(self.nm_counter))
+            out.write("\tBoth reads in pair are mapped {0}\n".format(self.mm_counter))
+            out.write("\tReads without any or more than one "
+                      "primary alignments {0}\n".format(self.wo_primary_alignments))
+            out.write("\nStatistics of alignment types\n")
+            out.write("\tSupplementary alignments {0}\n".format(self.supp_counter))
+            out.write("\tSecondary alignments {0}\n".format(self.sec_counter))
+            out.write("\tPrimary alignments {0}\n".format(self.prime_counter))
             out.write("\nStatistics of primary alignments\n")
-            out.write("\tWith mapq = 0 {0}\n".format(self.mapq0_count))
-            out.write("\tWith mapq > 0 {0}\n".format(self.posq_count))
+            out.write("\tWith mapq = 0 {0}\n".format(self.mapq0_counter))
+            out.write("\tWith mapq > 0 {0}\n".format(self.posq_counter))
+            out.write("\n\nStatistics of Hi-C pairs\n")
+            out.write("\tUU type {0}\n".format(self.uu_pair_counter))
+            out.write("\tUM type {0}\n".format(self.um_pair_counter))
+            out.write("\tMM type {0}\n".format(self.mm_pair_counter))
+
+
+# print(record)
+# qname = record.query_name  # record.
+# rname = record.reference_name
+# pos = record.reference_start
+# cigar = record.cigarstring
+# mrnm = record.next_reference_name
+# mpos = record.next_reference_start
+# tags = 0
+# if 0 != record.query_alignment_start:
+#     print(mrnm + " " + cigar)
+#     print(str(pos) + " " + str(record.query_alignment_start))
+#     # self.uniquely_mapped_reads
+
+# # self.mm_counter += 1
+# if record.flag & 0x0800:  # record.is_supplementary:
+#     # TODO small overlaps because of repeats or chimeric stuff
+#     pass
+# elif record.flag & 0x0100:  # record.is_secondary:
+#     # TODO may cause by overlaps in unitigs or complete overlaps
+#     pass
+# else:
+#     self.prime_counter += 1
+#     if record.mapping_quality == 0:
+#         self.mapq0_counter += 1
+#     else:
+#         self.posq_counter += 1
+#         # self.parse_primary_mapped_reads(record)
+
+# if len(recs1) == 1 and len(recs2) == 1:
+#     if recs1[0].flag & 0x0004 and recs2[0].flag & 0x0004:
+#         # both reads are unmapped - we are not interested
+#         self.nn_counter += 1
+#     elif bool(recs1[0].flag & 0x0004) != bool(recs2[0].flag & 0x0004):
+#         # one of two reads is unmapped - we are not interested
+#         self.nm_counter += 1
+#     elif recs1[0].mapping_quality > 0 and recs2[0].mapping_quality > 0:
+#         # assert recs1[0].flag & 0x0800 == 0 and recs2[0].flag & 0x0100 == 0
+#         # logger.debug("We have uniquely mapped pair")
+#         self.uu_pair_counter += 1
+#     elif bool(recs1[0].mapping_quality) != bool(recs2[0].mapping_quality):
+#         # assert recs1[0].flag & 0x0800 == 0 and recs2[0].flag & 0x0100 == 0
+#         self.um_pair_counter += 1
+#     else:
+#         assert recs1[0].mapping_quality == 0 and recs2[0].mapping_quality == 0
+#         if recs2[0].flag & 0x0100 != 0:
+#             print(recs2[0].tostring())
+#         # assert recs1[0].flag & 0x0800 == 0 and recs2[0].flag & 0x0100 == 0
+#         self.mm_pair_counter += 1
+# else:
+#     pass
+#     def _parse_read_alignments(self, records: List):
+#         for record in records:
+#             if record.flag & 0x0004 and record.flag & 0x0008:
+#                 # both reads are unmapped - we are not interested
+#                 # self.nn_counter += 1
+#                 pass
+#             elif bool(record.flag & 0x0004) != bool(record.flag & 0x0008):
+#                 # one of two reads is unmapped - we are not interested
+#                 # self.nm_counter += 1
+#                 pass
+#             else:
+#                 # self.mm_counter += 1
+#                 if record.flag & 0x0800:  # record.is_supplementary:
+#                     # TODO small overlaps because of repeats or chimeric stuff
+#                     pass
+#                 elif record.flag & 0x0100:  # record.is_secondary:
+#                     # TODO may cause by overlaps in unitigs or complete overlaps
+#                     pass
+#                 else:
+#                     self.prime_counter += 1
+#                     if record.mapping_quality == 0:
+#                         self.mapq0_counter += 1
+#                     else:
+#                         self.posq_counter += 1
+#                         # self.parse_primary_mapped_reads(record)

@@ -76,17 +76,32 @@ def main():
     #     os.mkdir(log_dir)
     # log_file = os.path.join(log_dir, "pairs.log")
     # enable_logging(log_file, True, logging.DEBUG)
+    enable_logging("current.log", True, logging.DEBUG)
+
     #
     # if not os.path.isfile(args.graph) or not os.path.isfile(args.bam):
     #     logger.error("One of the input files is unavaliable. Please, check existance of files")
     #     exit(1)
     #
     graph_file = "sb50.gfa"
-    bam_file = "two_cont.bam"
+    bam_file = "two_cont.sorted.bam"
+    sam_file = "two_cont.sam"
 
-    parser = BAMParser(bam_file)
+    #test()
+    # with open("two_cont.sam", 'r') as out:
+    #
+    #     # instream = iter(out)
+    #     # while line is not None:
+    #     #     line = next(instream, None)
+    #     #     read_id = line.split('\t', 1)[0] if line else None
+    #     #     if read_id != '@HD':
+    #     #         break
+    #
+    #     streaming_classify(out)
+
+    parser = BAMParser(bam_file, graph_file)
     parser.parse()
-    parser.write_statistics_info_into_file("stat.txt")
+    parser.write_statistics_info_into_file("stat1.txt")
 
 
 if __name__ == "__main__":
