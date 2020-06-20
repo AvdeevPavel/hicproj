@@ -127,27 +127,26 @@ HIC_READS = Channel.fromList(params.hic_files)
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-
 process preprocess_graph {
     publishDir "${params.output_dir}/", mode: 'copy'
+    executor 'local'
     input:
         file ORIGINAL_GRAPH
     output:
-        file './fastas/bubbly_utg/' into fasta_files_for_bwa, fasta_file_for_minimap2
-        file './fastas/non_bubbly_utg/'
-        file './inp_graph/'
-        file './logs/preprocess.log'
-        file './graph_wo_csb.gfa'
+        file 'fastas/bubbly_utg/' into fasta_files_for_bwa
+        file 'fastas/sep_bubbly_utg/' into fasta_files_for_minimap2
+        file 'fastas/non_bubbly_utg/'
+        file 'inp_graph/'
+        file 'logs/preprocess.log'
     script:
     """
         preprocess.py -g ${ORIGINAL_GRAPH} -o .
     """
 }
 
-
 process build_bwa_index {
     publishDir "${params.output_dir}/fastas/", mode: 'copy'
-    //module: 'bwa'
+    executor 'local'
     input:
         file fasta_dir from fasta_files_for_bwa
     output:
@@ -161,22 +160,25 @@ process build_bwa_index {
 //mkdir ${fasta_file.getSimpleName()}_index && mv ${fasta_file}* ${fasta_file.getSimpleName()}_index
 
 // --MD help for sniffles
+
 process do_minimap2_alignment {
     publishDir "${params.output_dir}/pafs/", mode: 'copy'
-    //module: 'minimap2'
+    executor 'local'
     input:
-        file fasta_dir from fasta_file_for_minimap2
+        file fasta_dir from fasta_files_for_minimap2
     output:
-        file "${fasta_dir.getSimpleName()}.paf.gz" into bubbly_alignment
+        file "${fasta_dir[0].getSimpleName()}.paf.gz" into bubbly_alignment
     script:
     """
-         minimap2 -xasm5 -DP ${fasta_dir} ${fasta_dir}/seqs.fa | gzip -c - > ${fasta_dir.getSimpleName()}.paf.gz
+         minimap2 -xasm5 --cs=short ${fasta_dir}/seqs1.fa ${fasta_dir}/seqs2.fa | gzip -c - > ${fasta_dir[0].getSimpleName()}.paf.gz
     """
 }
 
+
 process do_bwa_alignment {
+    maxForks 10
     publishDir "${params.output_dir}/bams/", mode: 'copy'
-    // module: 'bwa:samtools'
+    echo true
     input:
         each file(index_dir) from indexed_fasta_for_bwa
         tuple val(id), file(reads1), file(reads2) from HIC_READS
@@ -184,9 +186,10 @@ process do_bwa_alignment {
         file "algn${id}.bam" into bamlets
     script:
     """
-        bwa mem -SP5${params.bwaopt} -t ${task.cpus} ${index_dir}/seqs.fa ${reads1} ${reads2} | samtools view -bS - > algn${id}.bam
+        bwa mem -SP5 -t 8 ${index_dir}/seqs.fa ${reads1} ${reads2} | samtools view -bS - > algn${id}.bam
     """
 }
+
 
 
 workflow.onComplete {

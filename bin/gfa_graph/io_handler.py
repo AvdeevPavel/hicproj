@@ -111,10 +111,10 @@ def save_fasta_from_graph(fasta_fpath: str, graph, vertices: Set[int]) -> None:
     logger.info("Creating fasta files " + fasta_fpath + ".")
 
     with open(fasta_fpath, 'w') as fasta_out:
-        for id in vertices:
-            fasta_out.write('>{0}\n'.format(graph.get_node_name(id)))
-            length = graph.get_node_length(id)
-            seq = graph.get_node_seq(id)
+        for v in vertices:
+            fasta_out.write('>{0}\n'.format(graph.get_node_name(v)))
+            length = graph.get_node_length(v)
+            seq = graph.get_node_seq(v)
             for i in range(0, length, 80):
                 fasta_out.write(seq[i: i + 80] + '\n')
 

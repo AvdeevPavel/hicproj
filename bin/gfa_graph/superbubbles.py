@@ -50,7 +50,17 @@ class Superbubble(object):
     def nodes(self):
         return self._superbubble_vertices.keys()
 
+    def node_ids(self) -> Set[int]:
+        return {x.id for x in self._superbubble_vertices.keys()}
+
+    def internal_node_ids(self) -> Set[int]:
+        nodes = {x.id for x in self._superbubble_vertices.keys()}
+        nodes.discard(self._start_vertex.id)
+        nodes.discard(self._end_vertex.id)
+        return nodes
+
     # TODO Problem with tips in bubbles and if end_vertex in itself is tip. (I patched but need to be tested)
+    # TODO start and end nodes are also saved
     def detect(self, graph) -> bool:
         if graph.outgoing_degree(self._start_vertex) < 2:
             logger.debug("Vertex {0} has outgoing degree < 2. No bubbles starting from here".format(

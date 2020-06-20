@@ -106,6 +106,10 @@ def main():
     if not os.path.isdir(fasta_out_dir):
         os.mkdir(fasta_out_dir)
 
+    bubbly_sep_out_dir = os.path.join(fasta_out_dir, "sep_bubbly_utg")
+    if not os.path.isdir(bubbly_sep_out_dir):
+        os.mkdir(bubbly_sep_out_dir)
+
     bubbly_out_dir = os.path.join(fasta_out_dir, "bubbly_utg")
     if not os.path.isdir(bubbly_out_dir):
         os.mkdir(bubbly_out_dir)
@@ -114,13 +118,19 @@ def main():
     if not os.path.isdir(non_bubbly_out_dir):
         os.mkdir(non_bubbly_out_dir)
 
-    utgs = {n.id for bubble in get_simple_bubbles(superbubbles) for n in bubble.nodes()}
-    save_fasta_from_graph(os.path.join(bubbly_out_dir, "seqs.fa"), graph, utgs)
-    utgs = set(graph.node_ids()).difference(utgs)
+    # partition tigs into three sets
+    left, right = set(), set()
+    for bubble in get_simple_bubbles(superbubbles):
+        b_nodes = list(bubble.internal_node_ids())
+        left.add(b_nodes[0])
+        right.add(b_nodes[1])
+        assert len(b_nodes) == 2
+    all = left.union(right)
+    save_fasta_from_graph(os.path.join(bubbly_sep_out_dir, "seqs1.fa"), graph, left)
+    save_fasta_from_graph(os.path.join(bubbly_sep_out_dir, "seqs2.fa"), graph, right)
+    save_fasta_from_graph(os.path.join(bubbly_out_dir, "seqs.fa"), graph, all)
+    utgs = set(graph.node_ids()).difference(all)
     save_fasta_from_graph(os.path.join(non_bubbly_out_dir, "seqs.fa"), graph, utgs)
-
-    seqs, links = graph.create_gfa_info()
-    write_gfa_file(os.path.join(output_dir, "graph_wo_csb.gfa"), seqs, links)
 
 
 if __name__ == "__main__":
