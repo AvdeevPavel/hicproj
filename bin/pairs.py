@@ -84,8 +84,8 @@ def main():
     #     exit(1)
     #
     graph_file = "sb50.gfa"
-    bam_file = "two_cont.sorted.bam"
-    sam_file = "two_cont.sam"
+    # bam_file = "two_cont.sorted.bam"
+    bam_file = "algn0_mapped.bam"
 
     #test()
     # with open("two_cont.sam", 'r') as out:

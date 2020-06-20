@@ -59,6 +59,12 @@ class Superbubble(object):
         nodes.discard(self._end_vertex.id)
         return nodes
 
+    def internal_nodes(self) -> Set[DirectedNode]:
+        nodes = {x for x in self._superbubble_vertices.keys()}
+        nodes.discard(self._start_vertex)
+        nodes.discard(self._end_vertex)
+        return nodes
+
     # TODO Problem with tips in bubbles and if end_vertex in itself is tip. (I patched but need to be tested)
     # TODO start and end nodes are also saved
     def detect(self, graph) -> bool:

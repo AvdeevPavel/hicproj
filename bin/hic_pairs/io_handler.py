@@ -136,34 +136,35 @@ class BAMParser(object):
         self.nn_counter, self.nm_counter, self.mm_counter = 0, 0, 0
         # supp = supplementary, sec = secondary, prime = prim
         self.supp_counter, self.sec_counter, self.prime_counter = 0, 0, 0
-        # mapq0 is interesting since it may have perfect alignments but with XA tag, posq can be further filtered
-        self.mapq0_counter, self.posq_counter = 0, 0
+        # mapq = 0 is interesting since it may have perfect alignments but with XA tag
+        self.mq00_counter, self.mq01_counter, self.mq11_counter = 0, 0, 0
+        # posq can be further filtered
+        self.posq_counter = 0
         # type of hic pairs
         self.uu_pair_counter, self.um_pair_counter, self.mm_pair_counter = 0, 0, 0
 
+        self.very_bad = 0
         self.uniquely_mapped_reads = dict()
 
-    # def parse_primary_mapped_reads(self, record):
-    #     if 0 != record.query_alignment_start:
-    #         if record.flag & 0x0010 == 0:
+    # def parse_primary_mapped_reads(self, info):
+    #     if 0 != info.query_alignment_start:
+    #         if info.flag & 0x0010 == 0:
     #             strand = '+'
-    #             print(record.to_string())
-    #             print("Positive {0} {1} {2}".format(record.reference_start, record.reference_end, record.cigarstring))
+    #             print(info.to_string())
+    #             print("Positive {0} {1} {2}".format(info.reference_start, info.reference_end, info.cigarstring))
     #         else:
     #             strand = '-'
-    #             print(record.to_string())
-    #             print("Negative {0} {1} {2}".format(record.reference_start, record.reference_end, record.cigarstring))
+    #             print(info.to_string())
+    #             print("Negative {0} {1} {2}".format(info.reference_start, info.reference_end, info.cigarstring))
 
     def _partition_read_alignments(self, records: List) -> Tuple[List, List, List]:
         primary, secondary, supplementary = [], [], []
 
         for record in records:
-            if record.flag & 0x0100:  # record.is_secondary
+            if record.flag & 0x0100:  # info.is_secondary
                 secondary.append(record)
-                self.sec_counter += 1
-            elif record.flag & 0x0800:  # record.is_supplementary
+            elif record.flag & 0x0800:  # info.is_supplementary
                 supplementary.append(record)
-                self.supp_counter += 1
             else:
                 primary.append(record)
 
@@ -181,7 +182,7 @@ class BAMParser(object):
 
         if len(prim_rs1) != 1 or len(prim_rs2) != 1:
             self.wo_primary_alignments += 1
-            logger.debug("ATTENTION: It must be one and only one primary alignment for both reads")
+            logger.error("It must be one and only one primary alignment for both reads")
             return
 
         prim_r1, prim_r2 = prim_rs1[0], prim_rs2[0]
@@ -196,6 +197,36 @@ class BAMParser(object):
             return
 
         self.mm_counter += 1
+
+        if not (len(sec_rs1) or len(sec_rs2) or len(supp_rs1) or len(supp_rs2)):
+            self.prime_counter += 1
+
+            if prim_r1.has_tag('SA') or prim_r2.has_tag('SA'):
+                logger.error("There is a tag SA, but there is no records for that.")
+                return
+
+            if prim_r1.mapping_quality == 0 and prim_r2.mapping_quality == 0:
+                # MM type
+                self.mq00_counter += 1
+
+                if not prim_r1.has_tag('XA') and not prim_r2.has_tag('XA'):
+                    self.very_bad += 1
+                    # logger.debug("There is no XA tags and mapq = 0, there is nothing we can do it here.")
+                    return
+
+            elif (prim_r1.mapping_quality == 0) != (prim_r2.mapping_quality == 0):
+                # One of alignments unique, another one is not
+                # assert prim_r1.has_tag('XA') or prim_r2.has_tag('XA')
+                self.mq01_counter += 1
+            else:
+                # we have unique mapping - hooray!
+                self.mq11_counter += 1
+
+        if len(sec_rs1) or len(sec_rs2):
+            self.sec_counter += 1
+
+        if len(supp_rs1) or len(supp_rs2):
+            self.supp_counter += 1
 
     def parse(self) -> None:
         """
@@ -258,41 +289,44 @@ class BAMParser(object):
             out.write("\tSecondary alignments {0}\n".format(self.sec_counter))
             out.write("\tPrimary alignments {0}\n".format(self.prime_counter))
             out.write("\nStatistics of primary alignments\n")
-            out.write("\tWith mapq = 0 {0}\n".format(self.mapq0_counter))
-            out.write("\tWith mapq > 0 {0}\n".format(self.posq_counter))
+            out.write("\tBoth reads have mapq = 0 {0}\n".format(self.mq00_counter))
+            out.write("\tBoth reads have mapq = 0 and no XA tags {0}\n".format(self.very_bad))
+            out.write("\tOne of the reads have mapq = 0 {0}\n".format(self.mq01_counter))
+            out.write("\tBoth reads have mapq > 0 {0}\n".format(self.mq11_counter))
+            # out.write("\tWith mapq > 0 {0}\n".format(self.posq_counter))
             out.write("\n\nStatistics of Hi-C pairs\n")
             out.write("\tUU type {0}\n".format(self.uu_pair_counter))
             out.write("\tUM type {0}\n".format(self.um_pair_counter))
             out.write("\tMM type {0}\n".format(self.mm_pair_counter))
 
 
-# print(record)
-# qname = record.query_name  # record.
-# rname = record.reference_name
-# pos = record.reference_start
-# cigar = record.cigarstring
-# mrnm = record.next_reference_name
-# mpos = record.next_reference_start
+# print(info)
+# qname = info.query_name  # info.
+# rname = info.reference_name
+# pos = info.reference_start
+# cigar = info.cigarstring
+# mrnm = info.next_reference_name
+# mpos = info.next_reference_start
 # tags = 0
-# if 0 != record.query_alignment_start:
+# if 0 != info.query_alignment_start:
 #     print(mrnm + " " + cigar)
-#     print(str(pos) + " " + str(record.query_alignment_start))
+#     print(str(pos) + " " + str(info.query_alignment_start))
 #     # self.uniquely_mapped_reads
 
 # # self.mm_counter += 1
-# if record.flag & 0x0800:  # record.is_supplementary:
+# if info.flag & 0x0800:  # info.is_supplementary:
 #     # TODO small overlaps because of repeats or chimeric stuff
 #     pass
-# elif record.flag & 0x0100:  # record.is_secondary:
+# elif info.flag & 0x0100:  # info.is_secondary:
 #     # TODO may cause by overlaps in unitigs or complete overlaps
 #     pass
 # else:
 #     self.prime_counter += 1
-#     if record.mapping_quality == 0:
+#     if info.mapping_quality == 0:
 #         self.mapq0_counter += 1
 #     else:
 #         self.posq_counter += 1
-#         # self.parse_primary_mapped_reads(record)
+#         # self.parse_primary_mapped_reads(info)
 
 # if len(recs1) == 1 and len(recs2) == 1:
 #     if recs1[0].flag & 0x0004 and recs2[0].flag & 0x0004:
@@ -316,28 +350,31 @@ class BAMParser(object):
 #         self.mm_pair_counter += 1
 # else:
 #     pass
-#     def _parse_read_alignments(self, records: List):
-#         for record in records:
-#             if record.flag & 0x0004 and record.flag & 0x0008:
-#                 # both reads are unmapped - we are not interested
-#                 # self.nn_counter += 1
-#                 pass
-#             elif bool(record.flag & 0x0004) != bool(record.flag & 0x0008):
-#                 # one of two reads is unmapped - we are not interested
-#                 # self.nm_counter += 1
-#                 pass
+# def _parse_read_alignments(self, records: List):
+#     for info in records:
+#         self.alignment_counter += 1
+#         if info.flag & 0x0004 and info.flag & 0x0008:
+#             # both reads are unmapped - we are not interested
+#             self.nn_counter += 1
+#             # pass
+#         elif bool(info.flag & 0x0004) != bool(info.flag & 0x0008):
+#             # one of two reads is unmapped - we are not interested
+#             self.nm_counter += 1
+#             # pass
+#         else:
+#             self.mm_counter += 1
+#             if info.flag & 0x0800:  # info.is_supplementary:
+#                 # TODO small overlaps because of repeats or chimeric stuff
+#                 self.supp_counter += 1
+#                 # pass
+#             elif info.flag & 0x0100:  # info.is_secondary:
+#                 # TODO may cause by overlaps in unitigs or complete overlaps
+#                 self.sec_counter += 1
+#                 # pass
 #             else:
-#                 # self.mm_counter += 1
-#                 if record.flag & 0x0800:  # record.is_supplementary:
-#                     # TODO small overlaps because of repeats or chimeric stuff
-#                     pass
-#                 elif record.flag & 0x0100:  # record.is_secondary:
-#                     # TODO may cause by overlaps in unitigs or complete overlaps
-#                     pass
+#                 self.prime_counter += 1
+#                 if info.mapping_quality == 0:
+#                     self.mapq0_counter += 1
 #                 else:
-#                     self.prime_counter += 1
-#                     if record.mapping_quality == 0:
-#                         self.mapq0_counter += 1
-#                     else:
-#                         self.posq_counter += 1
-#                         # self.parse_primary_mapped_reads(record)
+#                     self.posq_counter += 1
+#                     # self.parse_primary_mapped_reads(info)
